@@ -1,1 +1,4 @@
 /.vscode/
+/stb/
+*.o
+*.out

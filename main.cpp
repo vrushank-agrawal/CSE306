@@ -245,26 +245,31 @@ int main() {
 
     int W = 1024;
     int H = 1024;
-    std::vector<unsigned char> image(W*H * 3, 0);
-    Vector Q = Vector(0, 0, 55);
+    std::vector<unsigned char> image(W*H*3, 0);
+    Vector Camera = Vector(0, 0, 55);
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
+    int rays_per_pixel = 1;
 
+    #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < H; i++)
         for (int j = 0; j < W; j++) {
-            Vector V = Vector(Q[0]+j+0.5-W/2,
-                              Q[1]-i-0.5+H/2,
-                              Q[2]-W/(2*tan(angle/2)));
+            Vector pixelColor = Vector(0., 0., 0.);
+            double x, y;
 
-            Vector temp = V - Q;
-            temp.normalize();
-            Ray ray = Ray(Q, temp);
-            Vector color = scene.getColor(ray, max_depth);
+            for (int k = 0; k < rays_per_pixel; k++) {
+                BoxMuller(0.5, x, y);
+                Vector Pixel = Vector(Camera[0]+(j+x)+0.5-W/2,
+                                      Camera[1]-(i+y)-0.5+H/2,
+                                      Camera[2]-W/(2*tan(angle/2)));
+                Ray ray = Ray(Camera, (Pixel-Camera).normalize());
+                pixelColor = pixelColor + scene.getColor(ray, max_depth);
+            }
 
-            image[(i * W + j) * 3 + 0] = std::min(255., pow(color[0], 1./gamma)*255);
-            image[(i * W + j) * 3 + 1] = std::min(255., pow(color[1], 1./gamma)*255);
-            image[(i * W + j) * 3 + 2] = std::min(255., pow(color[2], 1./gamma)*255);
+            image[(i * W + j) * 3 + 0] = std::min(255., pow(pixelColor[0]/rays_per_pixel, 1./gamma)*255);
+            image[(i * W + j) * 3 + 1] = std::min(255., pow(pixelColor[1]/rays_per_pixel, 1./gamma)*255);
+            image[(i * W + j) * 3 + 2] = std::min(255., pow(pixelColor[2]/rays_per_pixel, 1./gamma)*255);
         }
 
     stbi_write_png("image.png", W, H, 3, &image[0], 0);

@@ -200,19 +200,22 @@ class Scene {
                     double Nu = dot(ray.dir, localN);
                     double n1 = (Nu > 0) ? I.refractive_index : 1.0;
                     double n2 = (Nu > 0) ? 1. : I.refractive_index;
+                    localN = (Nu > 0) ? -1.*localN : localN;
 
+                    localP = I.P - (eps * localN);
+                    Nu = dot(ray.dir, localN);
                     if (1 - pow(n1/n2, 2) * (1 - pow(Nu, 2)) > 0.) {
                         /* refraction apply Fresnel's law */
+                        Vector wt_T = (n1/n2) * (ray.dir - dot(ray.dir, localN) * localN);
+                        Vector wt_N = -1. * localN * sqrt(1. - pow(n1/n2, 2) * (1 - pow(dot(ray.dir, localN), 2)));
+                        Vector w_t = wt_T + wt_N;
                         double k0 = pow((n1-n2)/(n1+n2), 2);
-                        double R = k0 + (1-k0) * pow(1 - abs(Nu), 5);
-                        double T = 1. - R;
+                        double R = k0 + (1-k0) * pow(1 - abs(dot(localN, ray.dir)), 5);
                         if (uniform(engine) < R) {
-                            Ray reflected_ray = Ray(localP, ray.dir - (2*dot(ray.dir, localN) * localN));
+                            Ray reflected_ray = Ray(localP, ray.dir - (2*dot(ray.dir, I.N) * I.N));
                             return getColor(reflected_ray, depth - 1);
                         } else {
-                            Vector T = (n1/n2) * (ray.dir - Nu * localN);
-                            Vector N = -1. * localN * sqrt(1. - T.norm2());
-                            Ray refracted_ray = Ray(localP, T + N);
+                            Ray refracted_ray = Ray(localP, w_t);
                             return getColor(refracted_ray, depth - 1);
                         }
                     } else {

@@ -139,12 +139,33 @@ class Scene {
     private:
         std::vector<Sphere> spheres;
         Vector S;
-        double intensity = 1e6;
+        double intensity = 1e5;
 
     public:
         explicit Scene(Vector light) { S = light; }
         void addSphere(Sphere sphere) { spheres.push_back(sphere); }
-        void setIntensity(double intensity) { intensity = intensity; }
+
+        Vector random_cos(const Vector &N) {
+            double r1 = uniform(engine);
+            double r2 = uniform(engine);
+            double x = sqrt(1-r2) * cos(2.*M_PI*r1);
+            double y = sqrt(1-r2) * sin(2.*M_PI*r1);
+            double z = sqrt(r2);
+
+            double min = std::numeric_limits<double>::max();
+            int axis = 0;
+            for (int i = 0; i < 3; i++)
+                if (abs(N[i]) < min) {
+                    min = abs(N[i]);
+                    axis = i;
+                }
+
+            Vector T1 = (axis==0) ? Vector(0., N[2], -N[1]).normalize():
+                        (axis==1) ? Vector(N[2], 0., -N[0]).normalize():
+                                    Vector(N[1], -N[0], 0.).normalize();
+            Vector T2 = cross(T1, N);
+            return T1*x + T2*y + N*z;
+        }
 
         Intersection intersect(const Ray& ray) {
             Intersection I_main, I_temp;
@@ -206,13 +227,24 @@ class Scene {
                 Vector w_i = (S - localP) / d;
                 Ray light_ray = Ray(S, w_i*(-1.));
                 Intersection I_light = intersect(light_ray);
-                bool visible = !(I_light.intersects && I_light.t <= d);
-                return I.color / M_PI * intensity / (4*M_PI*d*d) * visible * std::max(0., dot(w_i, localN));
+                bool visibility = !(I_light.intersects && I_light.t <= d);
+                Lo = intensity / (4*M_PI*d*d) * I.color / M_PI * visibility * std::max(0., dot(w_i, localN));
+
+                // add indirect lighting
+                Ray random_ray = Ray(localP, random_cos(localN));
+                Lo = Lo + I_light.color*getColor(random_ray, depth - 1);
             }
 
             return Lo;
         }
 };
+
+void BoxMuller(double stdev, double& x, double& y) {
+    double r1 = uniform(engine);
+    double r2 = uniform(engine);
+    x = stdev * sqrt(-2*log(r1)) * cos(2*M_PI*r2);
+    y = stdev * sqrt(-2*log(r1)) * sin(2*M_PI*r2);
+}
 
 int main() {
 

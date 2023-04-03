@@ -2,9 +2,13 @@
 #include <vector>
 #include <cmath>
 #include <limits>
+#include <random>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
+
+static std::default_random_engine engine(10);
+static std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
 class Vector {
 public:
@@ -19,11 +23,13 @@ public:
     double norm() const {
         return sqrt(norm2());
     }
-    void normalize() {
+    Vector normalize() {
         double n = norm();
-        data[0] /= n;
-        data[1] /= n;
-        data[2] /= n;
+        Vector temp;
+        temp[0] = data[0]/n;
+        temp[1] = data[1]/n;
+        temp[2] = data[2]/n;
+        return temp;
     }
     double operator[](int i) const { return data[i]; };
     double& operator[](int i) { return data[i]; };
@@ -41,6 +47,9 @@ Vector operator*(const double a, const Vector& b) {
 }
 Vector operator*(const Vector& a, const double b) {
     return Vector(a[0]*b, a[1]*b, a[2]*b);
+}
+Vector operator*(const Vector& a, const Vector& b) {
+    return Vector(a[0]*b[0], a[1]*b[1], a[2]*b[2]);
 }
 Vector operator/(const Vector& a, const double b) {
     return Vector(a[0] / b, a[1] / b, a[2] / b);
@@ -87,18 +96,21 @@ class Sphere {
         double radius;
         double refractive_index;
         bool reflects;
+        bool is_transparent;
 
     public:
         explicit Sphere(Vector C,
                         double radius,
                         Vector color,
                         bool reflects = false,
-                        double refractive_index = 1.) {
+                        double refractive_index = 1.,
+                        bool is_transparent = false) {
             this->C = C;
             this->radius = radius;
             this->color = color;
             this->reflects = reflects;
             this->refractive_index = refractive_index;
+            this->is_transparent = is_transparent;
         }
 
         Intersection intersect(const Ray &ray) {
@@ -117,8 +129,8 @@ class Sphere {
             }
 
             I.P = ray.O + (I.t * ray.dir);
-            I.N = I.P - this->C;
-            I.N.normalize();
+            I.N = (I.P - this->C).normalize();
+            I.N = (this->is_transparent) ? -1.*I.N : I.N;
             return I;
         }
 };
@@ -148,9 +160,10 @@ class Scene {
         }
 
         Vector getColor(const Ray& ray, int depth) {
-            if (depth < 0) return Vector(0, 0, 0);
+            if (depth < 0) return Vector(0., 0., 0.);
 
             Intersection I = intersect(ray);
+            Vector Lo = Vector(0., 0., 0.);
 
             if (I.intersects) {
                 double eps = 1e-10;
@@ -163,20 +176,32 @@ class Scene {
                 }
 
                 if (I.refractive_index != 1.) {
-                    double N_u = dot(ray.dir, localN);
-                    double n1 = (N_u > 0) ? I.refractive_index : 1.0;
-                    double n2 = (N_u > 0) ? 1. : I.refractive_index;
+                    double Nu = dot(ray.dir, localN);
+                    double n1 = (Nu > 0) ? I.refractive_index : 1.0;
+                    double n2 = (Nu > 0) ? 1. : I.refractive_index;
 
-                    localN = (N_u > 0) ? -1.*localN : localN;
-                    localP = I.P - eps * localN;
-                    N_u = dot(ray.dir, localN);
-
-                    Vector T = (n1/n2) * (ray.dir - N_u * localN);
-                    Vector N = -1. * sqrt(1. - T.norm2()) * localN;
-                    Ray refracted_ray = Ray(localP, T + N);
-                    return getColor(refracted_ray, depth - 1);
+                    if (1 - pow(n1/n2, 2) * (1 - pow(Nu, 2)) > 0.) {
+                        /* refraction apply Fresnel's law */
+                        double k0 = pow((n1-n2)/(n1+n2), 2);
+                        double R = k0 + (1-k0) * pow(1 - abs(Nu), 5);
+                        double T = 1. - R;
+                        if (uniform(engine) < R) {
+                            Ray reflected_ray = Ray(localP, ray.dir - (2*dot(ray.dir, localN) * localN));
+                            return getColor(reflected_ray, depth - 1);
+                        } else {
+                            Vector T = (n1/n2) * (ray.dir - Nu * localN);
+                            Vector N = -1. * localN * sqrt(1. - T.norm2());
+                            Ray refracted_ray = Ray(localP, T + N);
+                            return getColor(refracted_ray, depth - 1);
+                        }
+                    } else {
+                        /* total internal reflection */
+                        Ray reflected_ray = Ray(localP, ray.dir - (2*dot(I.N, ray.dir) * I.N));
+                        return getColor(reflected_ray, depth - 1);
+                    }
                 }
 
+                // add direct lighting in diffuse case
                 double d = (S - localP).norm();
                 Vector w_i = (S - localP) / d;
                 Ray light_ray = Ray(S, w_i*(-1.));
@@ -185,7 +210,7 @@ class Scene {
                 return I.color / M_PI * intensity / (4*M_PI*d*d) * visible * std::max(0., dot(w_i, localN));
             }
 
-            return Vector(0, 0, 0);
+            return Lo;
         }
 };
 
@@ -194,9 +219,10 @@ int main() {
     Scene scene = Scene(Vector(-10, 20, 40));
 
     // let's have fun!
-    Sphere sphere1 = Sphere(Vector(20, 0, 0), 10, Vector(1., 1., 1.), true, 1.5);
-    Sphere sphere2 = Sphere(Vector(0, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
-    Sphere sphere3 = Sphere(Vector(-20, 0, 0), 10, Vector(1., 1., 1.), false);
+    Sphere mirror = Sphere(Vector(20, 0, 0), 10, Vector(1., 1., 1.), true, 1.5);
+    Sphere refracted = Sphere(Vector(0, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
+    Sphere transparent_outer = Sphere(Vector(-20, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
+    Sphere transparent_inner = Sphere(Vector(-20, 0, 0), 9.8, Vector(1., 1., 1.), false, 1.5, true);
     // create spheres from the lecture notes
     Sphere left = Sphere(Vector(0, 1000, 0), 940, Vector(0, 1, 0));
     Sphere front = Sphere(Vector(0, 0, -1000), 940, Vector(1, 0, 0));
@@ -206,9 +232,10 @@ int main() {
     Sphere floor = Sphere(Vector(0, -1000, 0), 940, Vector(1, 1, 1));
 
     // add spheres to the scene
-    scene.addSphere(sphere1);
-    scene.addSphere(sphere2);
-    scene.addSphere(sphere3);
+    scene.addSphere(mirror);
+    scene.addSphere(refracted);
+    scene.addSphere(transparent_outer);
+    scene.addSphere(transparent_inner);
     scene.addSphere(left);
     scene.addSphere(front);
     scene.addSphere(right);

@@ -96,7 +96,7 @@ class Sphere {
         double radius;
         double refractive_index;
         bool reflects;
-        bool is_transparent;
+        bool is_hollow;
 
     public:
         explicit Sphere(Vector C,
@@ -104,13 +104,13 @@ class Sphere {
                         Vector color,
                         bool reflects = false,
                         double refractive_index = 1.,
-                        bool is_transparent = false) {
+                        bool is_hollow = false) {
             this->C = C;
             this->radius = radius;
             this->color = color;
             this->reflects = reflects;
             this->refractive_index = refractive_index;
-            this->is_transparent = is_transparent;
+            this->is_hollow = is_hollow;
         }
 
         Intersection intersect(const Ray &ray) {
@@ -130,7 +130,7 @@ class Sphere {
 
             I.P = ray.O + (I.t * ray.dir);
             I.N = (I.P - this->C).normalize();
-            I.N = (this->is_transparent) ? -1.*I.N : I.N;
+            I.N = (this->is_hollow) ? -1.*I.N : I.N;
             return I;
         }
 };
@@ -184,7 +184,7 @@ class Scene {
             if (depth < 0) return Vector(0., 0., 0.);
 
             Intersection I = intersect(ray);
-            Vector Lo = Vector(0., 0., 0.);
+            Vector Lo(0., 0., 0.);
 
             if (I.intersects) {
                 double eps = 1e-10;
@@ -198,19 +198,19 @@ class Scene {
 
                 if (I.refractive_index != 1.) {
                     double Nu = dot(ray.dir, localN);
-                    double n1 = (Nu > 0) ? I.refractive_index : 1.0;
-                    double n2 = (Nu > 0) ? 1. : I.refractive_index;
-                    localN = (Nu > 0) ? -1.*localN : localN;
+                    double n1 = (Nu > 0.) ? I.refractive_index : 1.;
+                    double n2 = (Nu > 0.) ? 1. : I.refractive_index;
+                    localN = (Nu > 0.) ? -1.*localN : localN;
 
                     localP = I.P - (eps * localN);
                     Nu = dot(ray.dir, localN);
-                    if (1 - pow(n1/n2, 2) * (1 - pow(Nu, 2)) > 0.) {
+                    if (1. - pow(n1/n2, 2) * (1. - pow(Nu, 2)) > 0.) {
                         /* refraction apply Fresnel's law */
-                        Vector wt_T = (n1/n2) * (ray.dir - dot(ray.dir, localN) * localN);
-                        Vector wt_N = -1. * localN * sqrt(1. - pow(n1/n2, 2) * (1 - pow(dot(ray.dir, localN), 2)));
+                        Vector wt_T = (n1/n2) * (ray.dir - Nu * localN);
+                        Vector wt_N = -1. * localN * sqrt(1. - pow(n1/n2, 2) * (1 - pow(Nu, 2)));
                         Vector w_t = wt_T + wt_N;
                         double k0 = pow((n1-n2)/(n1+n2), 2);
-                        double R = k0 + (1-k0) * pow(1 - abs(dot(localN, ray.dir)), 5);
+                        double R = k0 + (1-k0) * pow(1 - abs(dot(localN, w_t)), 5);
                         if (uniform(engine) < R) {
                             Ray reflected_ray = Ray(localP, ray.dir - (2*dot(ray.dir, I.N) * I.N));
                             return getColor(reflected_ray, depth - 1);
@@ -227,9 +227,8 @@ class Scene {
 
                 // add direct lighting in diffuse case
                 double d = (S - localP).norm();
-                Vector w_i = (S - localP) / d;
-                Ray light_ray = Ray(S, w_i*(-1.));
-                Intersection I_light = intersect(light_ray);
+                Vector w_i = (S - localP).normalize();
+                Intersection I_light = intersect(Ray(S, w_i*(-1.)));
                 double visibility = (!I_light.intersects || I_light.t > d) ? 1. : 0.;
                 Lo = intensity / (4*M_PI*d*d) * I.color / M_PI * visibility * std::max(0., dot(w_i, localN));
 
@@ -285,7 +284,7 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 100;
+    int rays_per_pixel = 10;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < H; i++)

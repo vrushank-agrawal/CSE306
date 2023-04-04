@@ -259,33 +259,33 @@ int main() {
     Sphere transparent_outer = Sphere(Vector(-20, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
     Sphere transparent_inner = Sphere(Vector(-20, 0, 0), 9.8, Vector(1., 1., 1.), false, 1.5, true);
     // create spheres from the lecture notes
-    Sphere left = Sphere(Vector(0, 1000, 0), 940, Vector(0, 1, 0));
-    Sphere front = Sphere(Vector(0, 0, -1000), 940, Vector(1, 0, 0));
-    Sphere right = Sphere(Vector(0, -1000, 0), 990, Vector(0, 0, 1));
+    Sphere ceiling = Sphere(Vector(0, 1000, 0), 940, Vector(1, 0, 0));
+    Sphere floor = Sphere(Vector(0, -1000, 0), 990, Vector(0, 0, 1));
+    Sphere front = Sphere(Vector(0, 0, -1000), 940, Vector(0, 1, 0));
     Sphere back = Sphere(Vector(0, 0, 1000), 940, Vector(1, 0, 1));
-    Sphere ceiling = Sphere(Vector(0, 1000, 0), 940, Vector(1, 1, 1));
-    Sphere floor = Sphere(Vector(0, -1000, 0), 940, Vector(1, 1, 1));
+    Sphere left = Sphere(Vector(1000, 0, 0), 940, Vector(0, 1, 1));
+    Sphere right = Sphere(Vector(-1000, 0, 0), 940, Vector(0, 1, 1));
 
     // add spheres to the scene
     scene.addSphere(mirror);
     scene.addSphere(refracted);
     scene.addSphere(transparent_outer);
     scene.addSphere(transparent_inner);
-    scene.addSphere(left);
-    scene.addSphere(front);
-    scene.addSphere(right);
-    scene.addSphere(back);
     scene.addSphere(ceiling);
     scene.addSphere(floor);
+    scene.addSphere(front);
+    scene.addSphere(back);
+    scene.addSphere(left);
+    scene.addSphere(right);
 
-    int W = 1024;
-    int H = 1024;
+    int W = 512;
+    int H = 512;
     std::vector<unsigned char> image(W*H*3, 0);
     Vector Camera = Vector(0, 0, 55);
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 1;
+    int rays_per_pixel = 10;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < H; i++)

@@ -137,13 +137,13 @@ class Sphere {
 
 class Scene {
     private:
-        std::vector<Sphere> spheres;
+        std::vector<Sphere*> spheres;
         Vector S;
         double intensity = 1e5;
 
     public:
         explicit Scene(Vector light) { S = light; }
-        void addSphere(Sphere sphere) { spheres.push_back(sphere); }
+        void addSphere(Sphere* sphere) { spheres.push_back(sphere); }
 
         Vector random_cos(const Vector &N) {
             double r1 = uniform(engine);
@@ -171,7 +171,7 @@ class Scene {
             Intersection I_main, I_temp;
             double t = std::numeric_limits<double>::max();
             for (auto& sphere : spheres) {
-                I_temp = sphere.intersect(ray);
+                I_temp = sphere->intersect(ray);
                 if (I_temp.intersects && I_temp.t < t) {
                     t = I_temp.t;
                     I_main = I_temp;
@@ -230,7 +230,7 @@ class Scene {
                 Vector w_i = (S - localP) / d;
                 Ray light_ray = Ray(S, w_i*(-1.));
                 Intersection I_light = intersect(light_ray);
-                bool visibility = !(I_light.intersects && I_light.t <= d);
+                double visibility = (!I_light.intersects || I_light.t > d) ? 1. : 0.;
                 Lo = intensity / (4*M_PI*d*d) * I.color / M_PI * visibility * std::max(0., dot(w_i, localN));
 
                 // add indirect lighting
@@ -254,23 +254,23 @@ int main() {
     Scene scene = Scene(Vector(-10, 20, 40));
 
     // let's have fun!
-    Sphere mirror = Sphere(Vector(20, 0, 0), 10, Vector(1., 1., 1.), true, 1.5);
-    Sphere refracted = Sphere(Vector(0, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
-    Sphere transparent_outer = Sphere(Vector(-20, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
-    Sphere transparent_inner = Sphere(Vector(-20, 0, 0), 9.8, Vector(1., 1., 1.), false, 1.5, true);
+    Sphere* mirror = new Sphere(Vector(20, 0, 0), 10, Vector(1., 1., 1.), true, 1.5);
+    Sphere* refracted = new Sphere(Vector(0, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
+    Sphere* hollow_outer = new Sphere(Vector(-20, 0, 0), 10, Vector(1., 1., 1.), false, 1.5);
+    Sphere* hollow_inner = new Sphere(Vector(-20, 0, 0), 9.8, Vector(1., 1., 1.), false, 1.5, true);
     // create spheres from the lecture notes
-    Sphere ceiling = Sphere(Vector(0, 1000, 0), 940, Vector(1, 0, 0));
-    Sphere floor = Sphere(Vector(0, -1000, 0), 990, Vector(0, 0, 1));
-    Sphere front = Sphere(Vector(0, 0, -1000), 940, Vector(0, 1, 0));
-    Sphere back = Sphere(Vector(0, 0, 1000), 940, Vector(1, 0, 1));
-    Sphere left = Sphere(Vector(1000, 0, 0), 940, Vector(0, 1, 1));
-    Sphere right = Sphere(Vector(-1000, 0, 0), 940, Vector(0, 1, 1));
+    Sphere* ceiling = new Sphere(Vector(0, 1000, 0), 940, Vector(1, 0, 0));
+    Sphere* floor = new Sphere(Vector(0, -1000, 0), 990, Vector(0, 0, 1));
+    Sphere* front = new Sphere(Vector(0, 0, -1000), 940, Vector(0, 1, 0));
+    Sphere* back = new Sphere(Vector(0, 0, 1000), 940, Vector(1, 0, 1));
+    Sphere* left = new Sphere(Vector(1000, 0, 0), 940, Vector(0, 1, 1));
+    Sphere* right = new Sphere(Vector(-1000, 0, 0), 940, Vector(0, 1, 1));
 
     // add spheres to the scene
     scene.addSphere(mirror);
     scene.addSphere(refracted);
-    scene.addSphere(transparent_outer);
-    scene.addSphere(transparent_inner);
+    scene.addSphere(hollow_outer);
+    scene.addSphere(hollow_inner);
     scene.addSphere(ceiling);
     scene.addSphere(floor);
     scene.addSphere(front);
@@ -285,7 +285,7 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 10;
+    int rays_per_pixel = 100;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < H; i++)

@@ -163,7 +163,7 @@ class Scene {
             Vector T1 = (axis==0) ? Vector(0., N[2], -N[1]).normalize():
                         (axis==1) ? Vector(N[2], 0., -N[0]).normalize():
                                     Vector(N[1], -N[0], 0.).normalize();
-            Vector T2 = cross(T1, N);
+            Vector T2 = cross(N, T1);
             return T1*x + T2*y + N*z;
         }
 
@@ -234,7 +234,7 @@ class Scene {
 
                 // add indirect lighting
                 Ray random_ray = Ray(localP, random_cos(localN));
-                Lo = Lo + I_light.color*getColor(random_ray, depth - 1);
+                Lo = Lo + I.color*getColor(random_ray, depth - 1);
             }
 
             return Lo;

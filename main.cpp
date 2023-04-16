@@ -336,13 +336,13 @@ public:
     BoundingBox bounding_box() {
         double minX{DBL_MAX}, minY{DBL_MAX}, minZ{DBL_MAX};
         double maxX{DBL_MIN}, maxY{DBL_MIN}, maxZ{DBL_MIN};
-        for (auto& v : vertices) {
+        for (auto const& v : vertices) {
             Vector Vertex = scaling_factor * v + translation;
             minX = std::min(minX, Vertex[0]);
-            minY = std::min(minY, Vertex[1]);
-            minZ = std::min(minZ, Vertex[2]);
             maxX = std::max(maxX, Vertex[0]);
+            minY = std::min(minY, Vertex[1]);
             maxY = std::max(maxY, Vertex[1]);
+            minZ = std::min(minZ, Vertex[2]);
             maxZ = std::max(maxZ, Vertex[2]);
         }
 
@@ -352,9 +352,9 @@ public:
     std::tuple<double, double> get_min(Vector N, Vector Bmin, Vector Bmax, const Ray& ray) {
         double t_B_min = dot(Bmin - ray.O, N) / dot(ray.u, N);
         double t_B_max = dot(Bmax - ray.O, N) / dot(ray.u, N);
-        double tx0 = std::min(t_B_min, t_B_max);
-        double tx1 = std::max(t_B_min, t_B_max);
-        return std::make_tuple(tx0, tx1);
+        double tx_0 = std::min(t_B_min, t_B_max);
+        double tx_1 = std::max(t_B_min, t_B_max);
+        return std::make_tuple(tx_0, tx_1);
     }
 
     bool bounding_box_intersects(const Ray& ray) {
@@ -381,7 +381,7 @@ public:
         Vector A, B, C, e1, e2, N;
         double t_min{DBL_MAX};
 
-        for (auto& i : indices){
+        for (auto const& i : indices){
             A = scaling_factor * vertices[i.vtxi] + translation;
             B = scaling_factor * vertices[i.vtxj] + translation;
             C = scaling_factor * vertices[i.vtxk] + translation;
@@ -390,8 +390,8 @@ public:
             N = cross(e1, e2);
 
             double beta = dot(cross(A - ray.O, ray.u), e2) / dot(ray.u, N);
-            double gamma = dot(cross(A - ray.O, ray.u), e1) / dot(ray.u, N);
-            double alpha = 1 - beta - gamma;
+            double gamma = - dot(cross(A - ray.O, ray.u), e1) / dot(ray.u, N);
+            double alpha = 1. - beta - gamma;
             double t = dot(A - ray.O, N) / dot(ray.u, N);
 
             if (alpha >= 0 && beta >= 0 && gamma >= 0 && t > 0 && t < t_min) {
@@ -613,7 +613,7 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 100;
+    int rays_per_pixel = 1;
 
     #pragma omp parallel for
     for (int i = 0; i < H; i++)

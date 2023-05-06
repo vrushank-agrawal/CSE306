@@ -6,6 +6,7 @@
 #include <cfloat>
 #include <tuple>
 #include <omp.h>
+#include <list>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
@@ -112,7 +113,7 @@ public:
     Vector B_min;
     Vector B_max;
 
-    explicit BoundingBox(Vector min, Vector max) {
+    explicit BoundingBox(Vector min = Vector(), Vector max = Vector()) {
         B_min = min;
         B_max = max;
     }
@@ -126,6 +127,14 @@ public:
     int uvi, uvj, uvk;  // indices within the uv coordinates array
     int ni, nj, nk;  // indices within the normals array
     int group;       // face group
+};
+
+struct Node {
+    BoundingBox bbox;
+    int starting_triangle;
+    int ending_triangle;
+    Node* child_left;
+    Node* child_right;
 };
 
 class TriangleMesh : public Geometry {
@@ -142,6 +151,8 @@ public:
     std::vector<Vector> normals;
     std::vector<Vector> uvs;
     std::vector<Vector> vertexcolors;
+    BoundingBox bbox;
+    Node* root;
 
     ~TriangleMesh() {}
     TriangleMesh(double scaling_factor,
@@ -154,6 +165,7 @@ public:
         this->color = color;
         this->refractive_index = refractive_index;
         this->reflects = reflects;
+        this->root = new Node;
     };
 
     /*  ---------------------------- READ OBJ -------------------------------   */
@@ -329,6 +341,7 @@ public:
 
         }
         fclose(f);
+        this->BVH(root, 0, indices.size());
     }
 
     /*  ------------------------ Bounding Box Auxiliary ------------------------   */
@@ -336,13 +349,13 @@ public:
     BoundingBox bounding_box() {
         double minX{DBL_MAX}, minY{DBL_MAX}, minZ{DBL_MAX};
         double maxX{DBL_MIN}, maxY{DBL_MIN}, maxZ{DBL_MIN};
-        for (auto& v : vertices) {
+        for (auto const& v : vertices) {
             Vector Vertex = scaling_factor * v + translation;
             minX = std::min(minX, Vertex[0]);
-            minY = std::min(minY, Vertex[1]);
-            minZ = std::min(minZ, Vertex[2]);
             maxX = std::max(maxX, Vertex[0]);
+            minY = std::min(minY, Vertex[1]);
             maxY = std::max(maxY, Vertex[1]);
+            minZ = std::min(minZ, Vertex[2]);
             maxZ = std::max(maxZ, Vertex[2]);
         }
 
@@ -352,14 +365,12 @@ public:
     std::tuple<double, double> get_min(Vector N, Vector Bmin, Vector Bmax, const Ray& ray) {
         double t_B_min = dot(Bmin - ray.O, N) / dot(ray.u, N);
         double t_B_max = dot(Bmax - ray.O, N) / dot(ray.u, N);
-        double tx0 = std::min(t_B_min, t_B_max);
-        double tx1 = std::max(t_B_min, t_B_max);
-        return std::make_tuple(tx0, tx1);
+        double tx_0 = std::min(t_B_min, t_B_max);
+        double tx_1 = std::max(t_B_min, t_B_max);
+        return std::make_tuple(tx_0, tx_1);
     }
 
-    bool bounding_box_intersects(const Ray& ray) {
-        BoundingBox bounding_box = this->bounding_box();
-
+    bool bounding_box_intersects(const Ray& ray, BoundingBox bounding_box, double* t) {
         // Check for ray-plane intersection
         auto [tx_0, tx_1] = get_min(Vector(1, 0, 0), bounding_box.B_min, bounding_box.B_max, ray);
         auto [ty_0, ty_1] = get_min(Vector(0, 1, 0), bounding_box.B_min, bounding_box.B_max, ray);
@@ -367,39 +378,97 @@ public:
 
         double min = std::min(std::min(tx_1, ty_1), tz_1);
         double max = std::max(std::max(tx_0, ty_0), tz_0);
-
+        *t = (min > max) ? max : *t;
         return (min > max) ? true : false;
+    }
+
+    Vector BaryCenter(int i) {
+        Vector vertex1 = (scaling_factor * this->vertices[this->indices[i].vtxi]) + translation;
+        Vector vertex2 = (scaling_factor * this->vertices[this->indices[i].vtxj]) + translation;
+        Vector vertex3 = (scaling_factor * this->vertices[this->indices[i].vtxk]) + translation;
+        return (vertex1 + vertex2 + vertex3)/3.;
+    }
+
+    void BVH(Node *node, int starting_triangle, int ending_triangle) {
+        node->bbox = this->bounding_box();
+        node->starting_triangle = starting_triangle;
+        node->ending_triangle = ending_triangle;
+
+        Vector diag = node->bbox.B_max - node->bbox.B_min;
+        Vector middle_diag = node->bbox.B_min + diag*0.5;
+        int longest_axis = (abs(diag[0]) > abs(diag[1]) &&
+                            abs(diag[0]) > abs(diag[2])) ? 0 :
+                           (abs(diag[1]) > abs(diag[2])) ? 1 : 2;
+
+        int pivot_index = starting_triangle;
+
+        for (int i = starting_triangle; i < ending_triangle; i++) {
+            Vector barycenter = this->BaryCenter(i);
+            if (barycenter[longest_axis] < middle_diag[longest_axis]) {
+                std::swap(indices[i], indices[pivot_index]);
+                pivot_index++;
+            }
+        }
+
+        if (pivot_index <= starting_triangle
+            || pivot_index >= ending_triangle-1
+            || ending_triangle-starting_triangle < 5
+            )
+            return;
+
+        node->child_left = new Node();
+        node->child_right = new Node();
+        this->BVH(node->child_left, starting_triangle, pivot_index);
+        this->BVH(node->child_right, pivot_index, ending_triangle);
     }
 
     /*  ------------------------ Intersection ------------------------   */
 
     Intersection intersect(const Ray &ray) override {
-        if (!bounding_box_intersects(ray))
-            return Intersection();
 
         Intersection I(this->color, this->refractive_index, this->reflects);
-        Vector A, B, C, e1, e2, N;
+        double t;
         double t_min{DBL_MAX};
+        if (!bounding_box_intersects(ray, this->root->bbox, &t))
+            return Intersection();
 
-        for (auto& i : indices){
-            A = scaling_factor * vertices[i.vtxi] + translation;
-            B = scaling_factor * vertices[i.vtxj] + translation;
-            C = scaling_factor * vertices[i.vtxk] + translation;
-            e1 = B - A;
-            e2 = C - A;
-            N = cross(e1, e2);
+        std::list<Node*> nodes_to_visit;
+        nodes_to_visit.push_front(root);
+        while (!nodes_to_visit.empty()) {
 
-            double beta = dot(cross(A - ray.O, ray.u), e2) / dot(ray.u, N);
-            double gamma = dot(cross(A - ray.O, ray.u), e1) / dot(ray.u, N);
-            double alpha = 1 - beta - gamma;
-            double t = dot(A - ray.O, N) / dot(ray.u, N);
+            Node *curNode = nodes_to_visit.back();
+            nodes_to_visit.pop_back();
 
-            if (alpha >= 0 && beta >= 0 && gamma >= 0 && t > 0 && t < t_min) {
-                t_min = t;
-                I.intersects = true;
-                I.t = t;
-                I.P = A + beta * e1 + gamma * e2;
-                I.N = N;
+            if (curNode->child_left) {
+                if (bounding_box_intersects(ray, curNode->child_left->bbox, &t))
+                    if (t < t_min)
+                        nodes_to_visit.push_back(curNode->child_left);
+                if (bounding_box_intersects(ray, curNode->child_right->bbox, &t))
+                    if (t < t_min)
+                        nodes_to_visit.push_back(curNode->child_right);
+            } else {
+                Vector A, B, C, e1, e2, N;
+                for (auto const& i : indices){
+                    A = scaling_factor * vertices[i.vtxi] + translation;
+                    B = scaling_factor * vertices[i.vtxj] + translation;
+                    C = scaling_factor * vertices[i.vtxk] + translation;
+                    e1 = B - A;
+                    e2 = C - A;
+                    N = cross(e1, e2);
+
+                    double beta = dot(cross(A - ray.O, ray.u), e2) / dot(ray.u, N);
+                    double gamma = - dot(cross(A - ray.O, ray.u), e1) / dot(ray.u, N);
+                    double alpha = 1. - beta - gamma;
+                    double t = dot(A - ray.O, N) / dot(ray.u, N);
+
+                    if (alpha >= 0 && beta >= 0 && gamma >= 0 && t > 0 && t < t_min) {
+                        t_min = t;
+                        I.intersects = true;
+                        I.t = t;
+                        I.P = A + beta * e1 + gamma * e2;
+                        I.N = N;
+                    }
+                }
             }
         }
         return I;
@@ -613,7 +682,7 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 100;
+    int rays_per_pixel = 1;
 
     #pragma omp parallel for
     for (int i = 0; i < H; i++)

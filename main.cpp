@@ -7,6 +7,8 @@
 #include <tuple>
 #include <omp.h>
 #include <list>
+#include <chrono>
+#include <iostream>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
@@ -624,8 +626,8 @@ class Scene {
                 Lo = intensity / (4*M_PI*d*d) * I.color / M_PI * visibility * std::max(0., dot(w_i, localN));
 
                 // add indirect lighting
-                Ray random_ray = Ray(localP, random_cos(localN));
-                Lo = Lo + I.color*getColor(random_ray, depth - 1);
+                // Ray random_ray = Ray(localP, random_cos(localN));
+                // Lo = Lo + I.color*getColor(random_ray, depth - 1);
             }
 
             return Lo;
@@ -643,6 +645,9 @@ void BoxMuller(double stdev, double& x, double& y) {
 
 int main() {
 
+    // start timer
+    auto start = std::chrono::high_resolution_clock::now();
+
     Scene scene = Scene(Vector(-10, 20, 40));
 
     // let's have fun!
@@ -659,10 +664,10 @@ int main() {
     Sphere right = Sphere(Vector(-1000, 0, 0), 940, Vector(0, 1, 1));
 
     // add spheres to the scene
-    // scene.addGeometry(&mirror);
-    // scene.addGeometry(&refracted);
-    // scene.addGeometry(&hollow_outer);
-    // scene.addGeometry(&hollow_inner);
+    scene.addGeometry(&mirror);
+    scene.addGeometry(&refracted);
+    scene.addGeometry(&hollow_outer);
+    scene.addGeometry(&hollow_inner);
     scene.addGeometry(&ceiling);
     scene.addGeometry(&floor);
     scene.addGeometry(&front);
@@ -671,9 +676,9 @@ int main() {
     scene.addGeometry(&right);
 
     // add cat to the scene
-    TriangleMesh cat = TriangleMesh(0.6, Vector(0, -10, 0), Vector(1., 1., 1.));
-    cat.readOBJ("cat/cat.obj");
-    scene.addGeometry(&cat);
+    // TriangleMesh cat = TriangleMesh(0.6, Vector(0, -10, 0), Vector(1., 1., 1.));
+    // cat.readOBJ("cat/cat.obj");
+    // scene.addGeometry(&cat);
 
     int W = 512;
     int H = 512;
@@ -682,7 +687,7 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 1;
+    int rays_per_pixel = 20;
 
     #pragma omp parallel for
     for (int i = 0; i < H; i++)
@@ -703,6 +708,11 @@ int main() {
             image[(i * W + j) * 3 + 1] = std::min(255., pow(pixelColor[1]/rays_per_pixel, 1./gamma)*255);
             image[(i * W + j) * 3 + 2] = std::min(255., pow(pixelColor[2]/rays_per_pixel, 1./gamma)*255);
         }
+
+    // stop timer
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop-start);
+    std::cout << "Rendering took " << duration.count() << " milliseconds." << std::endl;
 
     stbi_write_png("image.png", W, H, 3, &image[0], 0);
     return 0;

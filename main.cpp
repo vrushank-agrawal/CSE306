@@ -348,17 +348,24 @@ public:
 
     /*  ------------------------ Bounding Box Auxiliary ------------------------   */
 
-    BoundingBox bounding_box() {
+    BoundingBox bounding_box(int starting_triangle, int ending_triangle) {
         double minX{DBL_MAX}, minY{DBL_MAX}, minZ{DBL_MAX};
         double maxX{DBL_MIN}, maxY{DBL_MIN}, maxZ{DBL_MIN};
-        for (auto const& v : vertices) {
-            Vector Vertex = scaling_factor * v + translation;
-            minX = std::min(minX, Vertex[0]);
-            maxX = std::max(maxX, Vertex[0]);
-            minY = std::min(minY, Vertex[1]);
-            maxY = std::max(maxY, Vertex[1]);
-            minZ = std::min(minZ, Vertex[2]);
-            maxZ = std::max(maxZ, Vertex[2]);
+        for (int i=starting_triangle; i<ending_triangle; i++) {
+            auto triangle_vertices = {
+                this->vertices[this->indices[i].vtxi],
+                this->vertices[this->indices[i].vtxj],
+                this->vertices[this->indices[i].vtxk]
+            };
+            for (auto const& v : triangle_vertices) {
+                Vector Vertex = scaling_factor * v + translation;
+                minX = std::min(minX, Vertex[0]);
+                maxX = std::max(maxX, Vertex[0]);
+                minY = std::min(minY, Vertex[1]);
+                maxY = std::max(maxY, Vertex[1]);
+                minZ = std::min(minZ, Vertex[2]);
+                maxZ = std::max(maxZ, Vertex[2]);
+            }
         }
 
         return BoundingBox(Vector(minX, minY, minZ), Vector(maxX, maxY, maxZ));
@@ -392,7 +399,7 @@ public:
     }
 
     void BVH(Node *node, int starting_triangle, int ending_triangle) {
-        node->bbox = this->bounding_box();
+        node->bbox = this->bounding_box(starting_triangle, ending_triangle);
         node->starting_triangle = starting_triangle;
         node->ending_triangle = ending_triangle;
 
@@ -413,7 +420,7 @@ public:
         }
 
         if (pivot_index <= starting_triangle
-            || pivot_index >= ending_triangle-1
+            || pivot_index >= ending_triangle - 1
             || ending_triangle-starting_triangle < 5
             )
             return;
@@ -450,10 +457,11 @@ public:
                         nodes_to_visit.push_back(curNode->child_right);
             } else {
                 Vector A, B, C, e1, e2, N;
-                for (auto const& i : indices){
-                    A = scaling_factor * vertices[i.vtxi] + translation;
-                    B = scaling_factor * vertices[i.vtxj] + translation;
-                    C = scaling_factor * vertices[i.vtxk] + translation;
+                for (int i = curNode->starting_triangle; i < curNode->ending_triangle; i++){
+                    TriangleIndices triangle_indices = this->indices[i];
+                    A = scaling_factor * vertices[triangle_indices.vtxi] + translation;
+                    B = scaling_factor * vertices[triangle_indices.vtxj] + translation;
+                    C = scaling_factor * vertices[triangle_indices.vtxk] + translation;
                     e1 = B - A;
                     e2 = C - A;
                     N = cross(e1, e2);
@@ -626,8 +634,8 @@ class Scene {
                 Lo = intensity / (4*M_PI*d*d) * I.color / M_PI * visibility * std::max(0., dot(w_i, localN));
 
                 // add indirect lighting
-                // Ray random_ray = Ray(localP, random_cos(localN));
-                // Lo = Lo + I.color*getColor(random_ray, depth - 1);
+                Ray random_ray = Ray(localP, random_cos(localN));
+                Lo = Lo + I.color*getColor(random_ray, depth - 1);
             }
 
             return Lo;
@@ -687,9 +695,9 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 20;
+    int rays_per_pixel = 64;
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < H; i++)
         for (int j = 0; j < W; j++) {
             Vector pixelColor = Vector(0., 0., 0.);

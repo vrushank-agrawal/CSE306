@@ -11,7 +11,7 @@
 #include <iostream>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb/stb_image_write.h"
+#include "../stb/stb_image_write.h"
 
 static std::default_random_engine engine(10);
 static std::uniform_real_distribution<double> uniform(0.0, 1.0);
@@ -672,10 +672,10 @@ int main() {
     Sphere right = Sphere(Vector(-1000, 0, 0), 940, Vector(0, 1, 1));
 
     // add spheres to the scene
-    scene.addGeometry(&mirror);
-    scene.addGeometry(&refracted);
-    scene.addGeometry(&hollow_outer);
-    scene.addGeometry(&hollow_inner);
+    // scene.addGeometry(&mirror);
+    // scene.addGeometry(&refracted);
+    // scene.addGeometry(&hollow_outer);
+    // scene.addGeometry(&hollow_inner);
     scene.addGeometry(&ceiling);
     scene.addGeometry(&floor);
     scene.addGeometry(&front);
@@ -684,9 +684,9 @@ int main() {
     scene.addGeometry(&right);
 
     // add cat to the scene
-    // TriangleMesh cat = TriangleMesh(0.6, Vector(0, -10, 0), Vector(1., 1., 1.));
-    // cat.readOBJ("cat/cat.obj");
-    // scene.addGeometry(&cat);
+    TriangleMesh cat = TriangleMesh(0.6, Vector(0, -10, 0), Vector(1., 1., 1.));
+    cat.readOBJ("cat/cat.obj");
+    scene.addGeometry(&cat);
 
     int W = 512;
     int H = 512;
@@ -695,7 +695,7 @@ int main() {
     double angle = 1.0472; // 60 deg
     double gamma = 2.2;
     int max_depth = 5;
-    int rays_per_pixel = 64;
+    int rays_per_pixel = 1;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < H; i++)

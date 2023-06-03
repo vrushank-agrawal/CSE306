@@ -22,7 +22,6 @@ static std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
 Vector polygonIntersection(const Vector& prev, const Vector& cur, const std::vector<Vector>& edges) {
     Vector normal = (Vector(edges[1][1] - edges[0][1], edges[0][0] - edges[1][0], 0)).normalize();
-    double distance = dot(normal, edges[0] - prev);
     double t = dot(normal, edges[0] - prev) / dot(normal, cur - prev);
     if (0 <= t && t <= 1)
         return prev + t * (cur - prev);
@@ -30,23 +29,23 @@ Vector polygonIntersection(const Vector& prev, const Vector& cur, const std::vec
 }
 
 bool isInside(const Vector& point, const std::vector<Vector>& edges) {
-    Vector normal = (Vector(edges[1][1] - edges[0][1], edges[0][0] - edges[1][0], 0)).normalize();
-    return dot(normal, edges[0] - point) <= 0;
+    Vector normal = (Vector(edges[1][1] - edges[0][1], edges[0][0] - edges[1][0], 0));
+    return dot(normal, point - edges[0]) <= 0;
 }
 
 /* Polygon clipping */
-Polygon clipPolygon(Polygon& subjectPolygon, Polygon& convexPolygon) {
+Polygon clipPolygon(Polygon& subjectPolygon, Polygon& clipPolygon) {
     Polygon outputPolygon;
-    for (int i=0; i < convexPolygon.vertices.size()-1; i++) {
+    for (int i=0; i < clipPolygon.vertices.size(); i++) {
 
-        std::vector<Vector> clipEdge = {convexPolygon.vertices[i],
-                                        convexPolygon.vertices[(i > 0) ? (i - 1):(convexPolygon.vertices.size() - 1)]};
+        std::vector<Vector> clipEdge = {clipPolygon.vertices[i],
+                                        clipPolygon.vertices[(i>0) ? (i-1):(clipPolygon.vertices.size() - 1)]};
         outputPolygon = Polygon();
 
         for (int j=0; j < subjectPolygon.vertices.size(); j++) {
 
-            Vector currVertex = subjectPolygon.vertices[i];
-            Vector prevVertex = subjectPolygon.vertices[(j>0)?j-1:subjectPolygon.vertices.size()-1];
+            Vector currVertex = subjectPolygon.vertices[j];
+            Vector prevVertex = subjectPolygon.vertices[(j>0) ? (j-1):(subjectPolygon.vertices.size()-1)];
             Vector intersection = polygonIntersection(prevVertex, currVertex, clipEdge);
 
             if (isInside(currVertex, clipEdge)) {
@@ -82,11 +81,11 @@ int main() {
         Vector(0.8, 0.9), Vector(0.9, 0.1), Vector(0.5, 0.4)
     });
 
-    Polygon convexPolygon({
+    Polygon convexClipPolygon({
         Vector(0.3, 0.3), Vector(0.3, 0.7),
         Vector(0.7, 0.7), Vector(0.7, 0.3)
     });
 
-    save_svg({subjectPolygon, convexPolygon}, "images/initial.svg", "none");
-    save_svg({clipPolygon(subjectPolygon, convexPolygon)}, "images/clipped.svg", "none");
+    save_svg({subjectPolygon, convexClipPolygon}, "images/initial.svg", "none");
+    save_svg({clipPolygon(subjectPolygon, convexClipPolygon)}, "images/clipped.svg", "none");
 }

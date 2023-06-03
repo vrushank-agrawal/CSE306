@@ -1,19 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS 1
 #include <vector>
-#include <cmath>
-#include <limits>
 #include <random>
-#include <cfloat>
-#include <tuple>
 #include <omp.h>
-#include <list>
-#include <chrono>
 #include <iostream>
 
 #include "svg.h"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "../stb/stb_image_write.h"
 
 static std::default_random_engine engine(10);
 static std::uniform_real_distribution<double> uniform(0.0, 1.0);
@@ -70,12 +61,11 @@ Vector calcNormal(const Vector& A, const Vector& B, double wA, double wB) {
 }
 
 /* Power diagram intersection */
-Vector voronoiIntersect(
-    const Vector& A,
-    const Vector& B,
-    const std::vector<Vector>& edges,
-    const std::vector<double>& weights
-) {
+Vector voronoiIntersect(const Vector& A,
+                        const Vector& B,
+                        const std::vector<Vector>& edges,
+                        const std::vector<double>& weights)
+{
     Vector normal = calcNormal(edges[0], edges[1], weights[0], weights[1]);
     double t = dot(normal - A, edges[0] - edges[1]) / dot(B - A, edges[0] - edges[1]);
     if (0 <= t && t <= 1)
@@ -89,11 +79,10 @@ bool isInsideVoronoi(const Vector& point, const std::vector<Vector>& edges, cons
 }
 
 /* Voronoi Parallel Linear Enumeration */
-std::vector<Polygon> voronoiPLE(
-    const std::vector<Vector>& points,
-    const Polygon& bounds,
-    const std::vector<double>& weights
-) {
+std::vector<Polygon> voronoiPLE(const std::vector<Vector>& points,
+                                const Polygon& bounds,
+                                const std::vector<double>& weights)
+{
     std::vector<Polygon> outputPolygons(points.size());
 
     #pragma omp parallel for
@@ -133,9 +122,61 @@ std::vector<Polygon> voronoiPLE(
 }
 
 
+/* ------------------------ L-BFGS --------------------------------- */
+
+
+
+
 /* ------------------------ FLUID DYNAMICS --------------------------------- */
 
+/* Gallouet Merigot Scheme */
+void gallouet_merigot(std::vector<Vector>& points,
+                    std::vector<Vector>& velocities,
+                    const std::vector<double>& masses,
+                    const Polygon& bounds,
+                    int niter,
+                    int N, int M)
+{
 
+    for (int i=0; i<niter; i++) {
+
+    }
+
+}
+
+
+/* ------------------------ Tutte's Mapping - Lab 9 ------------------------ */
+
+std::vector<Vector> tutte(std::vector<Vector>& vertices,
+                            const std::vector<std::vector<int>>& adjacencies,
+                            const std::vector<int>& fixedIndices,
+                            int niter)
+{
+    std::vector<Vector> outputVertices(vertices.size());
+    double s = 0;
+    for (int i=0; i < vertices.size(); i++)
+        s += (vertices[fixedIndices[i]] - vertices[fixedIndices[(i+1)%fixedIndices.size()]]).norm();
+
+    double cs = 0;
+    for (int i=0; i < vertices.size(); i++) {
+        double theta = 2*M_PI*cs/s;
+        vertices[fixedIndices[i]] = Vector(cos(theta), sin(theta), 0);
+        cs += (vertices[fixedIndices[i]] - vertices[fixedIndices[(i+1)%fixedIndices.size()]]).norm();
+    }
+
+    for (int i=0; i < niter; i++) {
+        for (int j=0; j < vertices.size(); j++) {
+            if (std::find(fixedIndices.begin(), fixedIndices.end(), j) == fixedIndices.end()) {
+                Vector sum(0, 0, 0);
+                for (int k=0; k < adjacencies[j].size(); k++)
+                    sum = sum + vertices[adjacencies[j][k]];
+                outputVertices[j] = sum / adjacencies[j].size();
+            }
+        }
+        vertices = outputVertices;
+    }
+    return vertices;
+}
 
 
 /* ------------------------ MAIN --------------------------------- */
@@ -163,9 +204,8 @@ int main() {
         Vector(1., 1.), Vector(1., 0.)
     });
     std::vector<Vector> points(n);
-    for (int i=0; i < n; i++) {
+    for (int i=0; i < n; i++)
         points[i] = Vector(uniform(engine), uniform(engine));
-    }
     std::vector<double> weights(n, 1);
     save_svg(voronoiPLE(points, bounds, weights), "images/voronoi_1000.svg", "none");
 

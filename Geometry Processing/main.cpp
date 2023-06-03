@@ -41,7 +41,7 @@ Polygon clipPolygon(Polygon& subjectPolygon, Polygon& convexPolygon) {
 
         std::vector<Vector> clipEdge = {convexPolygon.vertices[i],
                                         convexPolygon.vertices[(i > 0) ? (i - 1):(convexPolygon.vertices.size() - 1)]};
-        // outputPolygon = Polygon();
+        outputPolygon = Polygon();
 
         for (int j=0; j < subjectPolygon.vertices.size(); j++) {
 

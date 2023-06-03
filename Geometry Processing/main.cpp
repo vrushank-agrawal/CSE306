@@ -66,7 +66,7 @@ Polygon clipPolygon(Polygon& subjectPolygon, Polygon& clipPolygon) {
 /* ------------------------ VORONOI --------------------------------- */
 
 Vector calcNormal(const Vector& A, const Vector& B, double wA, double wB) {
-    return (A+B)/2 + (wA-wB)*(B-A)/(2*std::pow((A-B).norm2(), 2));
+    return (A+B)/2 + (wA-wB)*(B-A)/(2*((A-B).norm2()*(A-B).norm2()));
 }
 
 /* Power diagram intersection */
@@ -157,16 +157,25 @@ int main() {
     save_svg({clipPolygon(subjectPolygon, convexClipPolygon)}, "images/clipped.svg", "none");
     #endif
 
-    
-    int n = 10;
+    int n = 1000;
     Polygon bounds({
         Vector(0., 0.), Vector(0., 1.),
         Vector(1., 1.), Vector(1., 0.)
     });
-
     std::vector<Vector> points(n);
     for (int i=0; i < n; i++) {
         points[i] = Vector(uniform(engine), uniform(engine));
     }
-    save_svg(voronoiPLE(points, bounds, std::vector<double>(n, 1)), "images/voronoi.svg", "none");
+    std::vector<double> weights(n, 1);
+    save_svg(voronoiPLE(points, bounds, weights), "images/voronoi_1000.svg", "none");
+
+    for (int i=0; i < n; i++) {
+        if (points[i][0] < 0.2 || points[i][0] > 0.8 || points[i][1] < 0.2 || points[i][1] > 0.8) {
+            weights[i] = 0;
+        } else {
+            weights[i] = 1;
+        }
+    }
+    save_svg(voronoiPLE(points, bounds, weights), "images/power_1000.svg", "none");
+
 }

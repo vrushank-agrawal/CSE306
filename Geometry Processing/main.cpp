@@ -20,11 +20,11 @@ static std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
 /* ------------------------ POLYGON --------------------------------- */
 
-Vector polygonIntersection(const Vector& prev, const Vector& cur, const std::vector<Vector>& edges) {
+Vector polygonIntersection(const Vector& A, const Vector& B, const std::vector<Vector>& edges) {
     Vector normal = (Vector(edges[1][1] - edges[0][1], edges[0][0] - edges[1][0], 0)).normalize();
-    double t = dot(normal, edges[0] - prev) / dot(normal, cur - prev);
+    double t = dot(normal, edges[0] - A) / dot(normal, B - A);
     if (0 <= t && t <= 1)
-        return prev + t * (cur - prev);
+        return A + t*(B - A);
     return Vector();
 }
 
@@ -33,7 +33,7 @@ bool isInside(const Vector& point, const std::vector<Vector>& edges) {
     return dot(normal, point - edges[0]) <= 0;
 }
 
-/* Polygon clipping */
+/* Polygon clipping Sutherland-Hodgman */
 Polygon clipPolygon(Polygon& subjectPolygon, Polygon& clipPolygon) {
     Polygon outputPolygon;
     for (int i=0; i < clipPolygon.vertices.size(); i++) {
@@ -65,6 +65,72 @@ Polygon clipPolygon(Polygon& subjectPolygon, Polygon& clipPolygon) {
 
 /* ------------------------ VORONOI --------------------------------- */
 
+Vector calcNormal(const Vector& A, const Vector& B, double wA, double wB) {
+    return (A+B)/2 + (wA-wB)*(B-A)/(2*std::pow((A-B).norm2(), 2));
+}
+
+/* Power diagram intersection */
+Vector voronoiIntersect(
+    const Vector& A,
+    const Vector& B,
+    const std::vector<Vector>& edges,
+    const std::vector<double>& weights
+) {
+    Vector normal = calcNormal(edges[0], edges[1], weights[0], weights[1]);
+    double t = dot(normal - A, edges[0] - edges[1]) / dot(B - A, edges[0] - edges[1]);
+    if (0 <= t && t <= 1)
+        return A + t*(B - A);
+    return Vector();
+}
+
+bool isInsideVoronoi(const Vector& point, const std::vector<Vector>& edges, const std::vector<double>& weights) {
+    Vector normal = calcNormal(edges[0], edges[1], weights[0], weights[1]);
+    return dot(point - normal, edges[1] - edges[0]) < 0;
+}
+
+/* Voronoi Parallel Linear Enumeration */
+std::vector<Polygon> voronoiPLE(
+    const std::vector<Vector>& points,
+    const Polygon& bounds,
+    const std::vector<double>& weights
+) {
+    std::vector<Polygon> outputPolygons(points.size());
+
+    #pragma omp parallel for
+    for (int i=0; i < points.size(); i++) {
+        Vector P_i = points[i];
+        Polygon currEdges = bounds;
+
+        for (int j=0; j < points.size(); j++)
+        {
+            if (i != j)
+            {
+                Vector P_j = points[j];
+                std::vector<Vector> edge = {P_i, P_j};
+                std::vector<double> weight = {weights[i], weights[j]};
+                Polygon outputPolygon;
+                for (int k=0; k < currEdges.vertices.size(); k++)
+                {
+                    Vector currVertex = currEdges.vertices[k];
+                    Vector prevVertex = currEdges.vertices[(k>0) ? (k-1):(currEdges.vertices.size()-1)];
+                    Vector intersection = voronoiIntersect(prevVertex, currVertex, edge, weight);
+
+                    if (isInsideVoronoi(currVertex, edge, weight)) {
+                        if (!isInsideVoronoi(prevVertex, edge, weight))
+                            outputPolygon.addVertex(intersection);
+                        outputPolygon.addVertex(currVertex);
+                    }
+                    else if (isInsideVoronoi(prevVertex, edge, weight)) {
+                        outputPolygon.addVertex(intersection);
+                    }
+                }
+                currEdges = outputPolygon;
+            }
+        }
+        outputPolygons[i] = currEdges;
+    }
+    return outputPolygons;
+}
 
 
 /* ------------------------ FLUID DYNAMICS --------------------------------- */
@@ -76,6 +142,7 @@ Polygon clipPolygon(Polygon& subjectPolygon, Polygon& clipPolygon) {
 
 int main() {
 
+    #ifdef POLYGON_TEST
     Polygon subjectPolygon({
         Vector(0.1, 0.2), Vector(0.3, 0.8), Vector(0.6, 0.5),
         Vector(0.8, 0.9), Vector(0.9, 0.1), Vector(0.5, 0.4)
@@ -88,4 +155,18 @@ int main() {
 
     save_svg({subjectPolygon, convexClipPolygon}, "images/initial.svg", "none");
     save_svg({clipPolygon(subjectPolygon, convexClipPolygon)}, "images/clipped.svg", "none");
+    #endif
+
+    
+    int n = 10;
+    Polygon bounds({
+        Vector(0., 0.), Vector(0., 1.),
+        Vector(1., 1.), Vector(1., 0.)
+    });
+
+    std::vector<Vector> points(n);
+    for (int i=0; i < n; i++) {
+        points[i] = Vector(uniform(engine), uniform(engine));
+    }
+    save_svg(voronoiPLE(points, bounds, std::vector<double>(n, 1)), "images/voronoi.svg", "none");
 }

@@ -6,7 +6,7 @@
 
 #include "svg.h"
 
-#define POLYGON_TEST
+// #define POLYGON_TEST
 
 static std::default_random_engine engine(10);
 static std::uniform_real_distribution<double> uniform(0.0, 1.0);
@@ -204,7 +204,7 @@ int main() {
 
     #else
 
-    int n = 1000;
+    int n = 10;
     Polygon bounds({
         Vector(0., 0.), Vector(0., 1.),
         Vector(1., 1.), Vector(1., 0.)
@@ -213,7 +213,7 @@ int main() {
     for (int i=0; i < n; i++)
         points[i] = Vector(uniform(engine), uniform(engine));
     std::vector<double> weights(n, 1);
-    save_svg(voronoiPLE(points, bounds, weights), "images/voronoi_1000.svg", "none");
+    save_svg(voronoiPLE(points, bounds, weights), "images/voronoi_10.svg", "none");
 
     for (int i=0; i < n; i++) {
         if (points[i][0] < 0.2 || points[i][0] > 0.8 || points[i][1] < 0.2 || points[i][1] > 0.8) {
@@ -222,7 +222,7 @@ int main() {
             weights[i] = 1;
         }
     }
-    save_svg(voronoiPLE(points, bounds, weights), "images/power_1000.svg", "none");
+    save_svg(voronoiPLE(points, bounds, weights), "images/power_10.svg", "none");
     #endif
 
 }

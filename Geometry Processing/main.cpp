@@ -6,6 +6,8 @@
 
 #include "svg.h"
 
+#define POLYGON_TEST
+
 static std::default_random_engine engine(10);
 static std::uniform_real_distribution<double> uniform(0.0, 1.0);
 
@@ -185,18 +187,22 @@ int main() {
 
     #ifdef POLYGON_TEST
     Polygon subjectPolygon({
-        Vector(0.1, 0.2), Vector(0.3, 0.8), Vector(0.6, 0.5),
-        Vector(0.8, 0.9), Vector(0.9, 0.1), Vector(0.5, 0.4)
+        Vector(0.1, 0.1), Vector(0.2, 0.3), Vector(0.3, 0.4),
+        Vector(0.4, 0.4), Vector(0.5, 0.9), Vector(0.6, 0.4),
+        Vector(0.7, 0.4), Vector(0.2, 0.1), Vector(0.1, 0.1),
     });
 
     Polygon convexClipPolygon({
         Vector(0.3, 0.3), Vector(0.3, 0.7),
-        Vector(0.7, 0.7), Vector(0.7, 0.3)
+        Vector(0.4, 0.8), Vector(0.5, 0.9),
+        Vector(0.6, 0.6), Vector(0.7, 0.2),
+        Vector(0.3, 0.3)
     });
 
     save_svg({subjectPolygon, convexClipPolygon}, "images/initial.svg", "none");
     save_svg({clipPolygon(subjectPolygon, convexClipPolygon)}, "images/clipped.svg", "none");
-    #endif
+
+    #else
 
     int n = 1000;
     Polygon bounds({
@@ -217,5 +223,6 @@ int main() {
         }
     }
     save_svg(voronoiPLE(points, bounds, weights), "images/power_1000.svg", "none");
+    #endif
 
 }

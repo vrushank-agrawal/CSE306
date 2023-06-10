@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "svg.h"
+#include "l-bfgs.h"
 
 // #define POLYGON_TEST
 
@@ -146,7 +147,6 @@ void gallouet_merigot(std::vector<Vector>& points,
 
 }
 
-
 /* ------------------------ Tutte's Mapping - Lab 9 ------------------------ */
 
 std::vector<Vector> tutte(std::vector<Vector>& vertices,
@@ -183,6 +183,17 @@ std::vector<Vector> tutte(std::vector<Vector>& vertices,
 
 /* ------------------------ MAIN --------------------------------- */
 
+#define TEST 2
+#if TEST == 0
+#define POLYGON_TEST
+#elif TEST == 1
+#define POWER_DIAGRAM
+#elif TEST == 2
+#define L_BFGS
+#elif TEST == 3
+#define FLUID_DYNAMICS
+#endif
+
 int main() {
 
     #ifdef POLYGON_TEST
@@ -202,7 +213,7 @@ int main() {
     save_svg({subjectPolygon, convexClipPolygon}, "images/initial.svg", "none");
     save_svg({clipPolygon(subjectPolygon, convexClipPolygon)}, "images/clipped.svg", "none");
 
-    #else
+    #elif defined POWER_DIAGRAM
 
     int n = 10;
     Polygon bounds({
@@ -223,6 +234,30 @@ int main() {
         }
     }
     save_svg(voronoiPLE(points, bounds, weights), "images/power_10.svg", "none");
+
+    #elif defined L_BFGS
+
+    int n = 1000;
+    std::vector<double> weights(n);
+    std::vector<Vector> points(n);
+    for (int i=0; i < n; i++) {
+        points[i] = Vector(uniform(engine), uniform(engine));
+        weights[i] = uniform(engine);
+    }
+
+    Polygon edges({
+        Vector(0., 0.), Vector(0., 1.),
+        Vector(1., 1.), Vector(1., 0.)
+    });
+
+    OT ot(points, weights, edges);
+    ot.solve();
+    save_svg(ot.polygons, "images/ot_10.svg", "none");
+
+    #elif defined FLUID_DYNAMICS
+
+    // TODO
+
     #endif
 
 }

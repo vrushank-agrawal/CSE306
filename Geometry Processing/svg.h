@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <vector>
 #include <string>
@@ -16,6 +17,30 @@ class Polygon {
         Polygon() = default;
         explicit Polygon(const std::vector<Vector>& vertices) : vertices(vertices) {}
         std::vector<Vector> vertices;
+
+        double area() const {
+            double area = 0.0;
+            if (vertices.size() < 3) return 0.0;
+            for (int i = 0; i < vertices.size(); i++) {
+                area += vertices[i][0] * vertices[(i + 1) % vertices.size()][1] - vertices[i][1] * vertices[(i + 1) % vertices.size()][0];
+            }
+            return std::abs(area) / 2.0;
+        }
+
+        double integrateSqDist(const Vector& point) const {
+            double sqDist = 0.0;
+            for (int i = 0; i < vertices.size(); i++) {
+                double x0 = vertices[i][0];
+                double y0 = vertices[i][1];
+                double x1 = vertices[(i + 1) % vertices.size()][0];
+                double y1 = vertices[(i + 1) % vertices.size()][1];
+                double det = (x1 - x0)*(point[1] - y0) - (y1 - y0)*(point[0] - x0);
+                double dotp = (point[0] - x0)*(x1 - x0) + (point[1] - y0)*(y1 - y0);
+                if (dotp<0 || dotp>(x1 - x0)*(x1 - x0) + (y1 - y0)*(y1 - y0)) det = 1E9;
+                sqDist = std::min(sqDist, std::abs(det));
+            }
+            return sqDist;
+        }
 
         void addVertex(const Vector& vertex) {
             vertices.push_back(vertex);

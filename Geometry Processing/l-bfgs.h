@@ -27,18 +27,12 @@ public:
 
     ~OT() {}
 
-    void solve() {
+    void solve(int n) {
         double fx = 0.0;
-        lbfgs(
-            points.size(),
-            &(weights[0]),
-            &fx,
-            _evaluate,
-            _progress,
-            this,
-            NULL
-        );
+        lbfgsfloatval_t *x = lbfgs_malloc(n);
+        lbfgs(n, &weights[0], &fx, _evaluate, _progress, this, NULL);
         polygons = voronoiPLE(points, edges, weights);
+        lbfgs_free(x);
     }
 
     static lbfgsfloatval_t _evaluate(
@@ -58,16 +52,16 @@ public:
         const lbfgsfloatval_t step
     ) {
         lbfgsfloatval_t fx = 0.0;
-
         std::vector<double> weights(x, x + n);
         polygons = voronoiPLE(points, edges, weights);
 
         for (int i=0; i<n; i++) {
             g[i] = polygons[i].area() - weights[i];
-            fx += g[i] * g[i];
+            fx += weights[i] * g[i];
             fx -= polygons[i].integrateSqDist(points[i]);
         }
 
+        // std::cout << "fx: " << fx << std::endl;
         return fx;
     }
 
@@ -97,14 +91,6 @@ public:
         int k,
         int ls
     ) {
-        /* std::cout << "Iteration " << k << ":\n";
-         * std::cout << "  fx = " << fx << "\n";
-         * std::cout << "  xnorm = " << xnorm << "\n";
-         * std::cout << "  gnorm = " << gnorm << "\n";
-         * std::cout << "  step = " << step << "\n";
-         * std::cout << "  ls = " << ls << "\n";
-         * std::cout << "\n";
-         */
         return 0;
     }
 

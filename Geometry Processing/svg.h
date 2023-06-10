@@ -29,6 +29,7 @@ class Polygon {
 
         double integrateSqDist(const Vector& point) const {
             double sqDist = 0.0;
+            Vector first = vertices[0];
             for (int i = 0; i < vertices.size(); i++) {
                 double x0 = vertices[i][0];
                 double y0 = vertices[i][1];

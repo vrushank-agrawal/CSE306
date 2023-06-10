@@ -237,11 +237,12 @@ int main() {
 
     #elif defined L_BFGS
 
-    int n = 1000;
+    int n = 10;
     std::vector<double> weights(n);
     std::vector<Vector> points(n);
     for (int i=0; i < n; i++) {
         points[i] = Vector(uniform(engine), uniform(engine));
+        // std::cout << points[i][0] << " " << points[i][1] << std::endl;
         weights[i] = uniform(engine);
     }
 
@@ -251,7 +252,7 @@ int main() {
     });
 
     OT ot(points, weights, edges);
-    ot.solve();
+    ot.solve(n);
     save_svg(ot.polygons, "images/ot_10.svg", "none");
 
     #elif defined FLUID_DYNAMICS

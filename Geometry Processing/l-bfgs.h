@@ -14,25 +14,25 @@ class OT {
 public:
 
     std::vector<Vector> points;
-    std::vector<double> weights;
+    std::vector<double> lambdas;
     Polygon edges;
     std::vector<Polygon> polygons;
+    std::vector<double> weights = std::vector<double>(points.size(), 1.0);
 
     OT( const std::vector<Vector>& points,
-        const std::vector<double>& weights,
+        const std::vector<double>& lambdas,
         const Polygon& edges
     ) : points(points),
-        weights(weights),
+        lambdas(lambdas),
         edges(edges) {}
 
     ~OT() {}
 
     void solve(int n) {
+        std::cout<< "entering solve" << std::endl;
         double fx = 0.0;
-        lbfgsfloatval_t *x = lbfgs_malloc(n);
         lbfgs(n, &weights[0], &fx, _evaluate, _progress, this, NULL);
         polygons = voronoiPLE(points, edges, weights);
-        lbfgs_free(x);
     }
 
     static lbfgsfloatval_t _evaluate(
@@ -52,15 +52,20 @@ public:
         const lbfgsfloatval_t step
     ) {
         lbfgsfloatval_t fx = 0.0;
-        std::vector<double> weights(x, x + n);
+
+        for (int i=0; i<n; i++)
+            weights[i] = x[i];
+
         polygons = voronoiPLE(points, edges, weights);
-
+        // std::cout<< "entering evaluate" << std::endl;
+        double t1=0, t2=0, t3=0;
         for (int i=0; i<n; i++) {
-            g[i] = polygons[i].area() - weights[i];
-            fx += weights[i] * g[i];
-            fx -= polygons[i].integrateSqDist(points[i]);
+            g[i] = polygons[i].area() - lambdas[i];
+            t1 += polygons[i].integrateSqDist(points[i]);
+            t2 -= x[i] * polygons[i].area();
+            t3 += x[i] * lambdas[i];
         }
-
+        fx = -(t1 + t2 + t3);
         // std::cout << "fx: " << fx << std::endl;
         return fx;
     }
@@ -91,7 +96,7 @@ public:
         int k,
         int ls
     ) {
-        return 0;
+		return 0;
     }
 
 };

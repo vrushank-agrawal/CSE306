@@ -21,24 +21,27 @@ class Polygon {
         double area() const {
             double area = 0.0;
             if (vertices.size() < 3) return 0.0;
-            for (int i = 0; i < vertices.size(); i++) {
+            for (int i = 0; i < vertices.size(); i++)
                 area += vertices[i][0] * vertices[(i + 1) % vertices.size()][1] - vertices[i][1] * vertices[(i + 1) % vertices.size()][0];
-            }
             return std::abs(area) / 2.0;
         }
 
         double integrateSqDist(const Vector& point) const {
+            if (vertices.size() < 3) return 0.0;
+
             double sqDist = 0.0;
-            Vector first = vertices[0];
-            for (int i = 0; i < vertices.size(); i++) {
-                double x0 = vertices[i][0];
-                double y0 = vertices[i][1];
-                double x1 = vertices[(i + 1) % vertices.size()][0];
-                double y1 = vertices[(i + 1) % vertices.size()][1];
-                double det = (x1 - x0)*(point[1] - y0) - (y1 - y0)*(point[0] - x0);
-                double dotp = (point[0] - x0)*(x1 - x0) + (point[1] - y0)*(y1 - y0);
-                if (dotp<0 || dotp>(x1 - x0)*(x1 - x0) + (y1 - y0)*(y1 - y0)) det = 1E9;
-                sqDist = std::min(sqDist, std::abs(det));
+            for (int i = 0; i < vertices.size()-1; i++) {
+                Vector triangle[3] = {vertices[0], vertices[i], vertices[i + 1]};
+
+                double local_value = 0.0;
+                for (int k = 0; k < 3; k++)
+                    for (int l = k; l < 3; l++)
+                        local_value += dot(triangle[k] - point, triangle[l] - point);
+
+                Vector e1 = triangle[1] - triangle[0];
+                Vector e2 = triangle[2] - triangle[0];
+                double area_triangle = 0.5 * abs(e1[1] * e2[0] - e1[0] * e2[1]);
+                sqDist += local_value / 6.0 * area_triangle;
             }
             return sqDist;
         }
